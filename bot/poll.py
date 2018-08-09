@@ -1,11 +1,10 @@
-from utils import *
-from pymongo import MongoClient, DESCENDING as DESC
 from time import time, sleep
 from telegram import Bot
 from config import *
+from database import db, DESC
 import traceback
+import network
 
-db = MongoClient().db
 bot = Bot(TOKEN)
 
 
@@ -15,36 +14,57 @@ def notify(message):
 
 
 def check_all():
-    last_check_info = db.checks.find_one({}, sort=[("ts", DESC)])
-    
-    if last_check_info is None:
-        last_check_result = {}
-        last_check_resolve = ""
-    else:
-        last_check_result = last_check_info["result"]
-        last_check_resolve = last_check_info["ip"]
-    
-    ip = get_ip(HOST)
+    EMOJI = {
+        "ok": "\u2705",
+        "fail": "\u274c",
+        "down": "\ud83d\udc80"
+    }
 
-    if ip != last_check_resolve:
-        notify("\ud83d\udd01 *{host}* changed IP to *{ip}*".format(host=HOST, ip=ip))
+    INFO = {
+        "ok": "is OK",
+        "fail": "can't reach {host}".format(host=HOST),
+        "down": "is down"
+    }
+
+    last_check = db.checks.find_one({}, sort=[("ts", DESC)])
+    
+    if last_check is None:
+        last_result = {}
+        last_ip = ""
+    else:
+        last_result = last_check["result"]
+        last_ip = last_check["ip"]
+    
+    ip = network.resolve(HOST)
+
+    if ip != last_ip:
+        notify("\ud83d\udd01 *{host}* has new IP address: *{ip}*".format(host=HOST, ip=ip))
 
     result = {}
 
     for client in db.clients.find({}):
         if not client["ip"]:
-            result[client["cn"]] = "down"
-        elif sock_connect(ip, 1080, client["ip"]):
-            result[client["cn"]] = "ok"
-        elif sock_connect(get_ip(DUMMY_HOST), 80, client["ip"]):
-            result[client["cn"]] = "fail"
+            verdict = "down"
+        elif network.connect(ip, 1080, client["ip"]):
+            verdict = "ok"
+        elif network.connect(network.resolve(DUMMY_HOST), 80, client["ip"]):
+            verdict = "fail"
         else:
-            result[client["cn"]] = "down"
+            verdict = "down"
 
-        if result[client["cn"]] == "down" and last_check_result.get(client["cn"], "down") != "down":
-            bot.send_message(chat_id=client["owner"], text="\u2757\ufe0f Your client *{cn}* has fallen down".format(cn=client["cn"]), parse_mode="Markdown")
-        if result[client["cn"]] == "fail" and last_check_result.get(client["cn"], "ok") == "ok":
+        result[client["cn"]] = verdict
+
+        if verdict != last_result.get(client["cn"], "down"):
+            bot.send_message(
+                    chat_id=client["owner"],
+                    text="{em} Your client *{cn}* {state}".format(em=EMOJI[verdict], cn=client["cn"], state=INFO[verdict]),
+                    parse_mode="Markdown"
+            )
+            
+        if verdict == "fail" and last_result.get(client["cn"], "down") == "ok":
             notify("\u274c Failed to connect via *{cn}* to *{host}* ({ip})".format(cn=client["cn"], host=HOST, ip=ip))
+        if verdict == "ok" and last_result.get(client["cn"], "down") == "fail":
+            notify("\u2705 Client *{cn}* restored connection to *{host}* ({ip})".format(cn=client["cn"], host=HOST, ip=ip))
     
     db.checks.insert_one({
         "ts": time(),
@@ -73,3 +93,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
