@@ -19,9 +19,17 @@ It tries to determine when exactly IP was banned, trying to connect there regula
 
 7. Add configuration to `bot/config.py` (TODO: sample config)
 
-8. Run OpenVPN, `bot/bot.py` and `bot/poll.py`
+8. Make your iptables more beautiful with some MASQUERADE'ing while connnecting to `tap` interface:
 
-9. Generate client pack using `/generate` bot command. Do not do it using CA.
+```bash
+iptables -t nat -I POSTROUTING -o tap0 -j MASQUERADE
+```
+
+9. Change sysctl's values `net.ipv4.conf.all.rp_filter` and `net.ip4.conf.tap0.rp_filter` to 0
+
+10. Run OpenVPN, `bot/bot.py` and `bot/poll.py`
+
+11. Generate client pack using `/generate` bot command. Do not do it using CA.
 
 Clients need just to connect using provided VPN config.
 
