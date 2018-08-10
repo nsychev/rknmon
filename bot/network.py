@@ -4,7 +4,9 @@ from platform import system as system_name
 import os
 
 # WARNING: IMPORTING THIS MODULE MAY BROKE YOUR PROGRAM
-os.setgid(0x80000000 + os.getpid())
+GID = 0x80000000 + os.getpid()
+os.setgid(GID)
+GID = str(GID)
 
 
 # ensure - returns True after the first success, or False in case of three fails
@@ -29,9 +31,14 @@ def resolve(host):
 
 
 def connect(ip, port, gateway):
-    # RULE = ["iptables", "-t", "mangle", "-I", "PREROUTING", "-d", ip, "-m", "owner", "--gid-owner", str(os.getgid()), "-j", "MARK", "--set-mark", os.getpid()]
-    RULE = ["ip", "route", "add", ip + "/32", "via", gateway]
-    system_call(RULE, stdout=DEVNULL)
+    cmd_iptables = ["iptables", "-t", "mangle", "-I", "OUTPUT", "-m", "owner", "--gid-owner", GID, "-j", "MARK", "--set-mark", GID]
+    # TODO: use pyroute2
+    cmd_rule = ["ip", "rule", "add", "fwmark", GID, "table", GID]
+    cmd_route = ["ip", "route", "add", ip + "/32", "via", gateway, "table", GID]
+
+    system_call(cmd_iptables, stdout=DEVNULL)
+    system_call(cmd_rule, stdout=DEVNULL)
+    system_call(cmd_route, stdout=DEVNULL)
 
     def can_connect():
         try:
@@ -46,8 +53,13 @@ def connect(ip, port, gateway):
 
     result = ensure(can_connect)
     
-    RULE[2] = "del" #RULE[3] = "-D"
-    system_call(RULE, stdout=DEVNULL)
+    cmd_iptables[3] = "-D"
+    cmd_rule[2] = "del"
+    cmd_route[2] = "del"
+
+    system_call(cmd_iptables, stdout=DEVNULL)
+    system_call(cmd_rule, stdout=DEVNULL)
+    system_call(cmd_route, stdout=DEVNULL)
 
     return result
 

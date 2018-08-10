@@ -48,7 +48,11 @@ def check_all():
         elif network.connect(ip, 1080, client["ip"]):
             verdict = "ok"
         elif network.connect(network.resolve(DUMMY_HOST), 80, client["ip"]):
-            verdict = "fail"
+            sleep(2)
+            if network.connect(ip, 1080, client["ip"]):
+                verdict = "ok"
+            else:
+                verdict = "fail"
         else:
             verdict = "down"
 
@@ -79,10 +83,13 @@ def main():
     while True:
         try:
             result, ip = check_all()
+        except KeyboardInterrupt:
+            print("Exit by Ctrl-C", flush=True)
+            break
         except:
             traceback.print_exc()
             continue
-        
+
         st = {"ok": 0, "fail": 0, "down": 0}
         for client in result:
             st[result[client]] += 1
