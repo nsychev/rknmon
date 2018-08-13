@@ -8,6 +8,15 @@ import network
 bot = Bot(TOKEN)
 
 
+def status_merge(status_old, status):
+    if status_old == "ok" or status == "ok":
+        return "ok"
+    elif status_old == "fail" and status == "fail":
+        return "fail"
+    else:
+        return "down"
+
+
 def notify(message):
     for chat in db.chats.find({}):
         bot.send_message(chat_id=chat["chat"], text=message, parse_mode="Markdown")
@@ -26,14 +35,12 @@ def check_all():
         "down": "is down"
     }
 
-    last_check = db.checks.find_one({}, sort=[("ts", DESC)])
+    last_checks = list(db.checks.find({}, sort=[("ts", DESC)]).limit(2))
     
-    if last_check is None:
-        last_result = {}
-        last_ip = ""
-    else:
-        last_result = last_check["result"]
-        last_ip = last_check["ip"]
+    while len(last_checks) < 2:
+        last_checks.append({"ip": "", "result": {}})
+    
+    last_ip = last_checks[0]["ip"]
     
     ip = network.resolve(HOST)
 
@@ -43,32 +50,47 @@ def check_all():
     result = {}
 
     for client in db.clients.find({}):
-        if not client["ip"]:
+        client_ip, cn = client["ip"], client["cn"]
+
+        if not client_ip:
             verdict = "down"
-        elif network.connect(ip, 1080, client["ip"]):
+        elif network.connect(ip, 1080, client_ip):
             verdict = "ok"
-        elif network.connect(network.resolve(DUMMY_HOST), 80, client["ip"]):
-            sleep(2)
-            if network.connect(ip, 1080, client["ip"]):
-                verdict = "ok"
-            else:
-                verdict = "fail"
+        elif network.connect(network.resolve(DUMMY_HOST), 80, client_ip):
+            verdict = "fail"
         else:
             verdict = "down"
 
-        result[client["cn"]] = verdict
+        result[cn] = verdict
+        old_results = [item["result"].get(cn, "down") for item in last_checks]
 
-        if verdict != last_result.get(client["cn"], "down"):
+        old_status = status_merge(*old_results)
+        status = status_merge(old_results[0], verdict)
+
+        if status != old_status:
             bot.send_message(
                     chat_id=client["owner"],
-                    text="{em} Your client *{cn}* {state}".format(em=EMOJI[verdict], cn=client["cn"], state=INFO[verdict]),
+                    text="{emoji} Your client *{cn}* {state}".format(
+                        emoji=EMOJI[status], 
+                        cn=cn, 
+                        state=INFO[status]
+                    ),
                     parse_mode="Markdown"
             )
             
-        if verdict == "fail" and last_result.get(client["cn"], "down") == "ok":
-            notify("\u274c Failed to connect via *{cn}* to *{host}* ({ip})".format(cn=client["cn"], host=HOST, ip=ip))
-        if verdict == "ok" and last_result.get(client["cn"], "down") == "fail":
-            notify("\u2705 Client *{cn}* restored connection to *{host}* ({ip})".format(cn=client["cn"], host=HOST, ip=ip))
+        if status == "fail" and old_status == "ok":
+            notify("\u274c Failed to connect via *{cn}* to *{host}* ({ip})".format(
+                cn=cn, 
+                host=HOST, 
+                ip=ip
+            ))
+
+        if status == "ok" and old_status == "fail":
+            notify("\u2705 Client *{cn}* restored connection to *{host}* ({ip})".format(
+                cn=cn, 
+                host=HOST, 
+                ip=ip
+            ))
     
     db.checks.insert_one({
         "ts": time(),
