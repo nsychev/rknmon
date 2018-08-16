@@ -8,7 +8,6 @@ clients.find_one_and_update(
     {"cn": os.environ["X509_0_CN"]},
     {"$set": {
         "ip": None
-    }},
-    upsert=True
+    }}
 )
 

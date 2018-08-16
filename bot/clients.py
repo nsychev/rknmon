@@ -79,6 +79,6 @@ def revoke(bot, update, args):
 
     client = db.clients.find_one_and_delete({"cn": common_name})
     bot.send_message(chat_id=client["owner"], text="\u274c Your account for *{cn}* was revoked by admin".format(cn=common_name), parse_mode="Markdown")
-    update.message.reply_markdown("\u2705 Account *{cn}* was revoked.\n\nThis action doesn't imply VPN certificate revokation")
+    update.message.reply_markdown("\u2705 Account *{cn}* was revoked.\n\nThis action doesn't imply VPN certificate revokation".format(cn=common_name))
 
 
