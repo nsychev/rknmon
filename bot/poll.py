@@ -4,6 +4,7 @@ from config import *
 from database import db, DESC
 import traceback
 import network
+from datetime import datetime
 
 bot = Bot(TOKEN)
 
@@ -116,7 +117,7 @@ def main():
         for client in result:
             st[result[client]] += 1
 
-        print("Resolve:", ip, "-", st["ok"], "succeeded,", st["fail"], "failed,", st["down"], "down", flush=True)
+        print(datetime.fromtimestamp(time()).strftime('%H:%M:%S'), "- checking", ip, "-", st["ok"], "succeeded,", st["fail"], "failed,", st["down"], "down", flush=True)
 
         sleep(30)
 

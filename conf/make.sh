@@ -14,5 +14,5 @@ cat ${BASE_CONFIG} \
     <(echo -e '</key>\n<tls-auth>') \
     ${KEY_DIR}/ta.key \
     <(echo -e '</tls-auth>') \
-    > ${OUTPUT_DIR}/${1}.ovpn
+    > ${OUTPUT_DIR}/${1}.conf
 
