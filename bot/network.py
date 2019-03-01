@@ -1,12 +1,17 @@
-from socket import socket, gethostbyname, error as SocketError
+from socket import socket, gethostbyname
+from dns.resolver import Resolver
 from subprocess import call as system_call, DEVNULL
 from platform import system as system_name
 import os
+import sys
+import traceback
 
 # WARNING: IMPORTING THIS MODULE MAY BROKE YOUR PROGRAM
 GID = 0x80000000 + os.getpid()
 os.setgid(GID)
 GID = str(GID)
+
+RESOLVERS = ["213.180.204.213", "93.158.134.213", "77.88.8.8"]
 
 
 # ensure - returns True after the first success, or False in case of three fails
@@ -25,8 +30,20 @@ def ping(host):
 
 def resolve(host):
     try:
+        resolver = Resolver()
+        resolver.nameservers = RESOLVERS
+
+        answer = resolver.query(host, "A")
+
+        return str(answer.rrset.items[0])
+    except Exception as e:
+        print("Fallback to legacy resolver", str(e), file=sys.stderr)
+        return resolve_legacy(host)
+    
+def resolve_legacy(host):
+    try:
         return gethostbyname(host)
-    except SocketError:
+    except OSError:
         return ""
 
 
@@ -47,8 +64,15 @@ def connect(ip, port, gateway):
             s.connect((ip, port))
             s.close()
             return True
-        except SocketError:
+        except OSError as e:
+            traceback.print_exc()
             s.close()
+            print("Error {error} while connecting to {ip}:{port} via {gw}".format(
+                error=e.errno,
+                ip=ip,
+                port=port,
+                gw=gateway
+            ), file=sys.stderr, flush=True)
             return False
 
     result = ensure(can_connect)

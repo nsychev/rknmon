@@ -45,6 +45,11 @@ def check_all():
     
     ip = network.resolve(HOST)
 
+    while ip == network.resolve("nsychev.ru") or ip == "":
+        print("Bad resolving, retrying in 3 seconds", flush=True)
+        sleep(3)
+        ip = network.resolve(HOST)
+
     if ip != last_ip:
         notify("\ud83d\udd01 *{host}* has new IP address: *{ip}*".format(host=HOST, ip=ip))
 
@@ -68,7 +73,19 @@ def check_all():
         old_status = status_merge(*old_results)
         status = status_merge(old_results[0], verdict)
 
-        if status != old_status:
+        if status == "fail" and old_status == "ok":
+            notify("\u274c Failed to connect via *{cn}* to *{host}* ({ip})".format(
+                cn=cn, 
+                host=HOST, 
+                ip=ip
+            ))
+        elif status == "ok" and old_status == "fail":
+            notify("\u2705 Client *{cn}* restored connection to *{host}* ({ip})".format(
+                cn=cn, 
+                host=HOST, 
+                ip=ip
+            ))
+        elif status != old_status:
             bot.send_message(
                     chat_id=client["owner"],
                     text="{emoji} Your client *{cn}* {state}".format(
@@ -79,20 +96,7 @@ def check_all():
                     parse_mode="Markdown"
             )
             
-        if status == "fail" and old_status == "ok":
-            notify("\u274c Failed to connect via *{cn}* to *{host}* ({ip})".format(
-                cn=cn, 
-                host=HOST, 
-                ip=ip
-            ))
-
-        if status == "ok" and old_status == "fail":
-            notify("\u2705 Client *{cn}* restored connection to *{host}* ({ip})".format(
-                cn=cn, 
-                host=HOST, 
-                ip=ip
-            ))
-    
+ 
     db.checks.insert_one({
         "ts": time(),
         "ip": ip,
